@@ -79,21 +79,27 @@ where
 /// // Bitwise operations for `LayerMask` unfortunately can't be const, so we need to access the `u64` values.
 /// pub const COMBINED: LayerMask = LayerMask(FIRST_LAYER.0 | LAST_LAYER.0);
 /// ```
-#[derive(Reflect, Clone, Copy, Debug, Deref, DerefMut, Eq, PartialOrd, Ord)]
+#[derive(Reflect, Clone, Copy, Debug, Eq, PartialOrd, Ord)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, PartialEq)]
-pub struct LayerMask(pub u64);
+pub struct LayerMask {
+    pub object: u32,
+    pub team: u32,
+}
 
 impl From<u64> for LayerMask {
     fn from(layer: u64) -> Self {
-        Self(layer)
+        Self {
+            team: (layer >> 32) as u32,
+            object: (layer & 0xffff_ffff) as u32,
+        }
     }
 }
 
 impl<L: PhysicsLayer> From<L> for LayerMask {
     fn from(layer: L) -> Self {
-        LayerMask(layer.to_bits())
+        layer.to_bits().into()
     }
 }
 
@@ -105,20 +111,23 @@ impl<L: Into<LayerMask>, const N: usize> From<[L; N]> for LayerMask {
             let layers: LayerMask = l.into();
             layers
         }) {
-            bits |= layer.0;
+            bits |= ((layer.team as u64) << 32) | (layer.object as u64);
         }
 
-        LayerMask(bits)
+        bits.into()
     }
 }
 
 impl LayerMask {
     /// Contains all layers.
-    pub const ALL: Self = Self(0xffff_ffff);
+    pub const ALL: Self = Self {
+        team: 0xffff_ffff,
+        object: 0xffff_ffff,
+    };
     /// Contains no layers.
-    pub const NONE: Self = Self(0);
+    pub const NONE: Self = Self { team: 0, object: 0 };
     /// Contains the default layer.
-    pub const DEFAULT: Self = Self(1);
+    pub const DEFAULT: Self = Self { team: 1, object: 1 };
 
     /// Adds the given `layers` to `self`.
     ///
@@ -181,12 +190,16 @@ impl LayerMask {
         let layers: LayerMask = layers.into();
         (self & layers) != 0
     }
+
+    fn neither_none(&self) -> bool {
+        self.team != 0 && self.object != 0
+    }
 }
 
 impl<L: Into<LayerMask> + Copy> PartialEq<L> for LayerMask {
     fn eq(&self, other: &L) -> bool {
         let other: Self = (*other).into();
-        self.0 == other.0
+        self.team == other.team && self.object == other.object
     }
 }
 
@@ -194,13 +207,19 @@ impl<L: Into<LayerMask>> BitAnd<L> for LayerMask {
     type Output = Self;
 
     fn bitand(self, rhs: L) -> Self::Output {
-        Self(self.0 & rhs.into().0)
+        let lm = rhs.into();
+        Self {
+            object: self.object & lm.object,
+            team: self.team & lm.team,
+        }
     }
 }
 
 impl<L: Into<LayerMask>> BitAndAssign<L> for LayerMask {
     fn bitand_assign(&mut self, rhs: L) {
-        self.0 = self.0 & rhs.into().0;
+        let lm = rhs.into();
+        self.object &= lm.object;
+        self.team &= lm.team;
     }
 }
 
@@ -208,13 +227,19 @@ impl<L: Into<LayerMask>> BitOr<L> for LayerMask {
     type Output = Self;
 
     fn bitor(self, rhs: L) -> Self::Output {
-        Self(self.0 | rhs.into().0)
+        let lm = rhs.into();
+        Self {
+            object: self.object | lm.object,
+            team: self.team | lm.team,
+        }
     }
 }
 
 impl<L: Into<LayerMask>> BitOrAssign<L> for LayerMask {
     fn bitor_assign(&mut self, rhs: L) {
-        self.0 = self.0 | rhs.into().0;
+        let lm = rhs.into();
+        self.object |= lm.object;
+        self.team |= lm.team;
     }
 }
 
@@ -222,13 +247,19 @@ impl<L: Into<LayerMask>> BitXor<L> for LayerMask {
     type Output = Self;
 
     fn bitxor(self, rhs: L) -> Self::Output {
-        Self(self.0 ^ rhs.into().0)
+        let lm = rhs.into();
+        Self {
+            object: self.object ^ lm.object,
+            team: self.team ^ lm.team,
+        }
     }
 }
 
 impl<L: Into<LayerMask>> BitXorAssign<L> for LayerMask {
     fn bitxor_assign(&mut self, rhs: L) {
-        self.0 = self.0 ^ rhs.into().0;
+        let lm = rhs.into();
+        self.object ^= lm.object;
+        self.team ^= lm.team;
     }
 }
 
@@ -236,7 +267,10 @@ impl Not for LayerMask {
     type Output = Self;
 
     fn not(self) -> Self::Output {
-        Self(!self.0)
+        Self {
+            team: !self.team,
+            object: !self.object,
+        }
     }
 }
 
@@ -414,16 +448,22 @@ impl CollisionLayers {
     /// the memberships in bits would be `0b01011` while the filters would be `0b00110`.
     pub const fn from_bits(memberships: u64, filters: u64) -> Self {
         Self {
-            memberships: LayerMask(memberships),
-            filters: LayerMask(filters),
+            memberships: LayerMask {
+                object: (memberships & 0xffff_ffff) as u32,
+                team: (memberships >> 32) as u32,
+            },
+            filters: LayerMask {
+                object: (filters & 0xffff_ffff) as u32,
+                team: (filters >> 32) as u32,
+            },
         }
     }
 
     /// Returns true if an entity with this [`CollisionLayers`] configuration
     /// can interact with an entity with the `other` [`CollisionLayers`] configuration.
     pub fn interacts_with(self, other: Self) -> bool {
-        (self.memberships & other.filters) != LayerMask::NONE
-            && (other.memberships & self.filters) != LayerMask::NONE
+        (self.memberships & other.filters).neither_none()
+            && (other.memberships & self.filters).neither_none()
     }
 }
 
@@ -453,8 +493,7 @@ mod tests {
             GameLayer::Enemy,
             [GameLayer::Default, GameLayer::Player, GameLayer::Ground],
         );
-        let with_layers =
-            CollisionLayers::new(LayerMask::from(GameLayer::Enemy), LayerMask(0b01011));
+        let with_layers = CollisionLayers::new(LayerMask::from(GameLayer::Enemy), 0b01011.into());
 
         assert_eq!(with_bitmask, with_enum);
         assert_eq!(with_bitmask, with_layers);

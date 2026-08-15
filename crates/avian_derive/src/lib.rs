@@ -99,7 +99,7 @@ pub fn derive_physics_layer(input: TokenStream) -> TokenStream {
             if !variant.fields.is_empty() {
                 return Err(variant.fields.span());
             }
-            let bits: u32 = 1 << index;
+            let bits: u64 = 1 << index;
             let ident = &variant.ident;
 
             Ok(quote! { #enum_ident::#ident => #bits, })
@@ -116,19 +116,19 @@ pub fn derive_physics_layer(input: TokenStream) -> TokenStream {
         }
     };
 
-    let all_bits: u32 = if variants.len() == 32 {
-        0xffffffff
+    let all_bits: u64 = if variants.len() == 32 {
+        0xffffffffffffffff
     } else {
         (1 << variants.len()) - 1
     };
 
     let expanded = quote! {
         impl PhysicsLayer for #enum_ident {
-            fn all_bits() -> u32 {
+            fn all_bits() -> u64 {
                 #all_bits
             }
 
-            fn to_bits(&self) -> u32 {
+            fn to_bits(&self) -> u64 {
                 match self {
                     #(#to_bits)*
                 }
