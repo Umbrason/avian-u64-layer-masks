@@ -475,7 +475,9 @@ impl Default for CollisionLayers {
 
 #[cfg(test)]
 mod tests {
-    use crate::prelude::*;
+    use bevy::camera::visibility::Layer;
+
+use crate::prelude::*;
 
     #[derive(PhysicsLayer, Default)]
     enum GameLayer {
@@ -493,7 +495,7 @@ mod tests {
             GameLayer::Enemy,
             [GameLayer::Default, GameLayer::Player, GameLayer::Ground],
         );
-        let with_layers = CollisionLayers::new(LayerMask::from(GameLayer::Enemy), 0b01011.into());
+        let with_layers = CollisionLayers::new(LayerMask::from(GameLayer::Enemy), LayerMask::from(0b01011));
 
         assert_eq!(with_bitmask, with_enum);
         assert_eq!(with_bitmask, with_layers);
