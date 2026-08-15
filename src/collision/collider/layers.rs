@@ -8,20 +8,20 @@ use bevy::prelude::*;
 /// This trait can be derived for enums with `#[derive(PhysicsLayer)]`.
 pub trait PhysicsLayer: Sized + Default {
     /// Converts the layer to a bitmask.
-    fn to_bits(&self) -> u32;
+    fn to_bits(&self) -> u64;
     /// Creates a layer bitmask with all bits set to 1.
-    fn all_bits() -> u32;
+    fn all_bits() -> u64;
 }
 
 impl<'a, L: PhysicsLayer> PhysicsLayer for &'a L
 where
     &'a L: Default,
 {
-    fn to_bits(&self) -> u32 {
+    fn to_bits(&self) -> u64 {
         L::to_bits(self)
     }
 
-    fn all_bits() -> u32 {
+    fn all_bits() -> u64 {
         L::all_bits()
     }
 }
@@ -63,7 +63,7 @@ where
 /// let mask2 = LayerMask(0b0010);
 /// assert_eq!(mask1 | mask2, LayerMask(0b0011));
 ///
-/// // You can also add layers from `u32` bitmasks and compare against them directly.
+/// // You can also add layers from `u64` bitmasks and compare against them directly.
 /// assert_eq!(mask1 | 0b0010, 0b0011);
 /// ```
 ///
@@ -76,17 +76,17 @@ where
 /// pub const FIRST_LAYER: LayerMask = LayerMask(1 << 0);
 /// pub const LAST_LAYER: LayerMask = LayerMask(1 << 31);
 ///
-/// // Bitwise operations for `LayerMask` unfortunately can't be const, so we need to access the `u32` values.
+/// // Bitwise operations for `LayerMask` unfortunately can't be const, so we need to access the `u64` values.
 /// pub const COMBINED: LayerMask = LayerMask(FIRST_LAYER.0 | LAST_LAYER.0);
 /// ```
 #[derive(Reflect, Clone, Copy, Debug, Deref, DerefMut, Eq, PartialOrd, Ord)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, PartialEq)]
-pub struct LayerMask(pub u32);
+pub struct LayerMask(pub u64);
 
-impl From<u32> for LayerMask {
-    fn from(layer: u32) -> Self {
+impl From<u64> for LayerMask {
+    fn from(layer: u64) -> Self {
         Self(layer)
     }
 }
@@ -314,9 +314,9 @@ impl Not for LayerMask {
 /// # use bevy::prelude::Commands;
 /// #
 /// // `1 << n` is bitshifting: the first layer shifted by `n` layers.
-/// pub const FIRST_LAYER: u32 = 1 << 0; // Note: this is the default layer.
-/// pub const SECOND_LAYER: u32 = 1 << 1;
-/// pub const LAST_LAYER: u32 = 1 << 31;
+/// pub const FIRST_LAYER: u64 = 1 << 0; // Note: this is the default layer.
+/// pub const SECOND_LAYER: u64 = 1 << 1;
+/// pub const LAST_LAYER: u64 = 1 << 31;
 ///
 /// fn spawn(mut commands: Commands) {
 ///     // This collider belongs to the first two layers and can interact with the last layer.
@@ -412,7 +412,7 @@ impl CollisionLayers {
     /// There is one bit per group and mask, so there are a total of 32 layers.
     /// For example, if an entity is a part of the layers `[0, 1, 3]` and can interact with the layers `[1, 2]`,
     /// the memberships in bits would be `0b01011` while the filters would be `0b00110`.
-    pub const fn from_bits(memberships: u32, filters: u32) -> Self {
+    pub const fn from_bits(memberships: u64, filters: u64) -> Self {
         Self {
             memberships: LayerMask(memberships),
             filters: LayerMask(filters),
