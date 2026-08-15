@@ -84,7 +84,9 @@ where
 #[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, PartialEq)]
 pub struct LayerMask {
+    /// the object-type of the layer. e.g. Wall, Ground, Player etc.
     pub object: u32,
+    /// the team(s) the layer belongs to / interacts with
     pub team: u32,
 }
 
@@ -475,9 +477,7 @@ impl Default for CollisionLayers {
 
 #[cfg(test)]
 mod tests {
-    use bevy::camera::visibility::Layer;
-
-use crate::prelude::*;
+    use crate::prelude::*;
 
     #[derive(PhysicsLayer, Default)]
     enum GameLayer {
@@ -495,7 +495,8 @@ use crate::prelude::*;
             GameLayer::Enemy,
             [GameLayer::Default, GameLayer::Player, GameLayer::Ground],
         );
-        let with_layers = CollisionLayers::new(LayerMask::from(GameLayer::Enemy), LayerMask::from(0b01011));
+        let with_layers =
+            CollisionLayers::new(LayerMask::from(GameLayer::Enemy), LayerMask::from(0b01011));
 
         assert_eq!(with_bitmask, with_enum);
         assert_eq!(with_bitmask, with_layers);
